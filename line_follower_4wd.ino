@@ -1,53 +1,93 @@
-# Praktikum IoT — Mobil Line Follower 4WD (Kelompok 5)
+// Definisi Pin Sensor IR (Kabel Hitam OUT)
+const int sensorKiri = 2;  // OUT Sensor Kiri -> Pin 2
+const int sensorKanan = 3; // OUT Sensor Kanan -> Pin 3
 
-Repository source code firmware **Mobil Line Follower 4WD** berbasis mikrokontroler Arduino Uno R3 untuk pemenuhan Tugas Besar Ujian Tengah Semester (UTS) mata kuliah **Praktikum Internet of Things**.
+// Definisi Pin Driver Motor L298N (Susunan Pin 11 - 6)
+const int ENA = 11; // Kabel Cokelat (Motor Kiri)
+const int IN1 = 10; // Kabel Merah
+const int IN2 = 9;  // Kabel Kuning
+const int IN3 = 8;  // Kabel Oranye (Motor Kanan)
+const int IN4 = 7;  // Kabel Hijau
+const int ENB = 6;  // Kabel Biru
 
-## Informasi Akademik
-* **Mata Kuliah:** Praktikum Internet of Things
-* **Dosen Pengampu:** Mohammad Bayu Anggara, S.Kom., M.Kom.
-* **Program Studi:** Teknik Informatika — Fakultas Teknologi Informasi
-* **Institusi:** Universitas Bale Bandung (2026)
+// Pengaturan Kecepatan Motor (0 - 255)
+int kecepatanMaju = 140;  // Kecepatan jalan lurus
+int kecepatanBelok = 230; // Kecepatan tinggi agar kuat memutar 4 ban saat belok
 
-## Anggota Kelompok 5
-| No | Nama Lengkap | NIM | Peran / Tugas |
-| :---: | :--- | :---: | :--- |
-| 1 | Nela Nurazizah | 301230029 | Ketua Kelompok, Koordinasi Tim & Penyusunan Laporan Utama |
-| 2 | Indra Mulyadi | 301230005 | Perancangan Mekanik Chassis & Perakitan Hardware |
-| 3 | Muhammad Taufik Rahmatullah | 301230042 | Pemrograman Firmware, Wiring Elektronik & Kalibrasi Sensor |
-| 4 | Rahayu Febrianti | 301230057 | Penyusunan Slide Presentasi (.pptx) & Finalisasi Laporan |
-| 5 | Erga Refaldy Dwi Gustian | 301230006 | Dokumentasi Pengujian & Produksi Video Tutorial |
+void setup() {
+  Serial.begin(9600);
 
-## Spesifikasi Perangkat Keras
-* **Mikrokontroler:** Arduino Uno R3 (ATmega328P SMD)
-* **Driver Motor:** L298N Dual H-Bridge
-* **Sensor:** 2x Modul Sensor Garis Inframerah (TCRT5000 + Komparator LM393)
-* **Chassis & Aktuator:** Smart Car 4WD Double-Layer Acrylic + 4x TT DC Gear Motor (1:48)
-* **Catu Daya:** 4x Baterai AA 1.5V (6V DC)
+  pinMode(sensorKiri, INPUT);
+  pinMode(sensorKanan, INPUT);
 
-## Pemetaan Pin (Wiring)
-| Pin Arduino | Komponen / Terminal | Warna Kabel | Fungsi Sinyal |
-| :--- | :--- | :--- | :--- |
-| **D2** | Sensor Garis Kiri (`OUT`) | Hitam | Input digital sensor kiri (`0` = putih, `1` = hitam) |
-| **D3** | Sensor Garis Kanan (`OUT`) | Hitam | Input digital sensor kanan (`0` = putih, `1` = hitam) |
-| **D11 (PWM)** | Driver L298N (`ENA`) | Cokelat | Output sinyal PWM kecepatan motor kiri |
-| **D10** | Driver L298N (`IN1`) | Merah | Output logika arah putar motor kiri |
-| **D9** | Driver L298N (`IN2`) | Kuning | Output logika arah putar motor kiri |
-| **D8** | Driver L298N (`IN3`) | Oranye | Output logika arah putar motor kanan |
-| **D7** | Driver L298N (`IN4`) | Hijau | Output logika arah putar motor kanan |
-| **D6 (PWM)** | Driver L298N (`ENB`) | Biru | Output sinyal PWM kecepatan motor kanan |
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(ENB, OUTPUT);
+}
 
-## Logika Navigasi & Parameter PWM
-* **Kecepatan Jalan Lurus (`kecepatanMaju`):** `140`
-* **Kecepatan Belok Skid-Steering (`kecepatanBelok`):** `230`
-* **Telemetri Serial:** UART `9600 bps`
+void loop() {
+  int bacaKiri = digitalRead(sensorKiri);
+  int bacaKanan = digitalRead(sensorKanan);
 
-| Sensor Kiri (`D2`) | Sensor Kanan (`D3`) | Kondisi Lintasan | Aksi Robot |
-| :---: | :---: | :--- | :--- |
-| `0` (LOW) | `0` (LOW) | Kedua sensor di lantai putih (garis di tengah) | **Maju Lurus** (`PWM 140`) |
-| `1` (HIGH) | `0` (LOW) | Sensor kiri menyentuh garis hitam | **Belok Kiri** (`PWM 230`) |
-| `0` (LOW) | `1` (HIGH) | Sensor kanan menyentuh garis hitam | **Belok Kanan** (`PWM 230`) |
-| `1` (HIGH) | `1` (HIGH) | Kedua sensor menyentuh garis hitam melintang | **Berhenti** (`PWM 0`) |
+  // Pantau status sensor di Serial Monitor (0 = Lantai Putih, 1 = Garis Hitam)
+  Serial.print("Kiri: ");
+  Serial.print(bacaKiri);
+  Serial.print(" | Kanan: ");
+  Serial.println(bacaKanan);
 
-## Struktur File
-* `line_follower_4wd.ino` — Source code utama program kendali navigasi dan telemetri serial robot.
-* `README.md` — Dokumentasi rangkaian, logika kendali, dan informasi tim pengembang.
+  // Kondisi 1: Kedua sensor di lantai putih (0 dan 0) -> Maju lurus
+  if (bacaKiri == LOW && bacaKanan == LOW) {
+    maju();
+  }
+  // Kondisi 2: Sensor kiri kena garis hitam (1) -> Belok kiri
+  else if (bacaKiri == HIGH && bacaKanan == LOW) {
+    belokKiri();
+  }
+  // Kondisi 3: Sensor kanan kena garis hitam (1) -> Belok kanan
+  else if (bacaKiri == LOW && bacaKanan == HIGH) {
+    belokKanan();
+  }
+  // Kondisi 4: Kedua sensor kena garis hitam (1 dan 1) -> Berhenti (garis finish/perempatan)
+  else {
+    berhenti();
+  }
+}
+
+void maju() {
+  analogWrite(ENA, kecepatanMaju);
+  analogWrite(ENB, kecepatanMaju);
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void belokKiri() {
+  analogWrite(ENA, kecepatanBelok);
+  analogWrite(ENB, kecepatanBelok);
+  digitalWrite(IN1, LOW);   // Roda kiri mundur
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);  // Roda kanan maju
+  digitalWrite(IN4, LOW);
+}
+
+void belokKanan() {
+  analogWrite(ENA, kecepatanBelok);
+  analogWrite(ENB, kecepatanBelok);
+  digitalWrite(IN1, HIGH);  // Roda kiri maju
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);   // Roda kanan mundur
+  digitalWrite(IN4, HIGH);
+}
+
+void berhenti() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
